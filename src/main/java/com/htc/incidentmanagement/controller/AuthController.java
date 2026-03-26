@@ -5,7 +5,9 @@ import com.htc.incidentmanagement.service.AuthService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -54,23 +56,44 @@ public class AuthController {
 
     // ================== Auth Token methods==================
 
-    // -------------------- VALIDATE TOKEN --------------------
-    @Operation(summary = "Validate JWT token")
-    @GetMapping("/validate")
-    public ResponseEntity<Boolean> validateToken(
-            @RequestParam String token) {
+    private static final String BEARER_PREFIX = "Bearer ";
 
+    // -------------------- VALIDATE TOKEN --------------------
+    @Operation(summary = "Validate JWT token", description = "Validates the JWT token supplied in the Authorization header.")
+    @SecurityRequirement(name = "bearerAuth")
+    @GetMapping("/validate")
+    public ResponseEntity<?> validateToken(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        String token = extractBearerToken(authHeader);
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Authorization header missing or invalid format. Expected: Bearer <token>");
+        }
         return ResponseEntity.ok(authTokenService.isTokenValid(token));
     }
 
     // -------------------- LOGOUT --------------------
     @Operation(summary = "Logout and revoke token", description = "Revokes the current JWT token and prevents further access using the same token.")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(
-            @RequestParam String token) {
+    public ResponseEntity<?> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
 
+        String token = extractBearerToken(authHeader);
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Authorization header missing or invalid format. Expected: Bearer <token>");
+        }
         authTokenService.revokeToken(token);
         return ResponseEntity.noContent().build();
+    }
+
+    private String extractBearerToken(String authHeader) {
+        if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
+            return authHeader.substring(BEARER_PREFIX.length());
+        }
+        return null;
     }
 
     // -------------------- FORCE LOGOUT USER --------------------
