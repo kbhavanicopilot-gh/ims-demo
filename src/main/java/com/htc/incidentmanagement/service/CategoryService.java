@@ -2,18 +2,18 @@ package com.htc.incidentmanagement.service;
 
 import java.util.List;
 
+import com.htc.incidentmanagement.dto.CategoryRequest;
 import com.htc.incidentmanagement.dto.CategoryResponse;
-import com.htc.incidentmanagement.model.Category;
 
 public interface CategoryService {
 
     List<CategoryResponse> getAllCategories();
 
-    Category getCategoryById(Long id);
+    CategoryResponse getCategoryById(Long id);
 
-    Category createCategory(Category category);
+    CategoryResponse createCategory(CategoryRequest request);
 
-    Category updateCategory(Long id, Category category);
+    CategoryResponse updateCategory(Long id, CategoryRequest request);
 
     void deleteCategory(Long id);
 }

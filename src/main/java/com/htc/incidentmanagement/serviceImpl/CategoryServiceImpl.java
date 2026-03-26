@@ -5,8 +5,11 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.htc.incidentmanagement.dto.CategoryRequest;
 import com.htc.incidentmanagement.dto.CategoryResponse;
 import com.htc.incidentmanagement.dto.TicketSummary;
+import com.htc.incidentmanagement.exception.DuplicateResourceException;
+import com.htc.incidentmanagement.exception.ResourceNotFoundException;
 import com.htc.incidentmanagement.model.Category;
 import com.htc.incidentmanagement.repository.CategoryRepository;
 import com.htc.incidentmanagement.service.CategoryService;
@@ -27,8 +30,8 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<CategoryResponse> getAllCategories() {
-
         return categoryRepository.findAll()
                 .stream()
                 .map(category -> new CategoryResponse(
@@ -46,29 +49,54 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public Category getCategoryById(Long id) {
-        return categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found: " + id));
+    @Transactional(readOnly = true)
+    public CategoryResponse getCategoryById(Long id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", id));
+        return new CategoryResponse(
+                category.getCategoryId(),
+                category.getCategoryName(),
+                category.getTickets()
+                        .stream()
+                        .map(ticket -> new TicketSummary(
+                                ticket.getTicketId(),
+                                ticket.getTitle(),
+                                ticket.getPriority(),
+                                ticket.getStatus()))
+                        .toList());
     }
 
     @Override
-    public Category createCategory(Category category) {
-        if (categoryRepository.existsByCategoryName(category.getCategoryName())) {
-            throw new RuntimeException("Category name already exists: " + category.getCategoryName());
+    public CategoryResponse createCategory(CategoryRequest request) {
+        if (categoryRepository.existsByCategoryNameIgnoreCase(request.getCategoryName())) {
+            throw new DuplicateResourceException("Category", "name: " + request.getCategoryName());
         }
-        return categoryRepository.save(category);
+        Category category = new Category();
+        category.setCategoryName(request.getCategoryName());
+        Category saved = categoryRepository.save(category);
+        logger.info("Category created: id={}, name={}", saved.getCategoryId(), saved.getCategoryName());
+        return new CategoryResponse(saved.getCategoryId(), saved.getCategoryName(), List.of());
     }
 
     @Override
-    public Category updateCategory(Long id, Category category) {
-        Category existing = getCategoryById(id);
-        existing.setCategoryName(category.getCategoryName());
-        return categoryRepository.save(existing);
+    public CategoryResponse updateCategory(Long id, CategoryRequest request) {
+        Category existing = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", id));
+        if (!existing.getCategoryName().equalsIgnoreCase(request.getCategoryName())
+                && categoryRepository.existsByCategoryNameIgnoreCase(request.getCategoryName())) {
+            throw new DuplicateResourceException("Category", "name: " + request.getCategoryName());
+        }
+        existing.setCategoryName(request.getCategoryName());
+        Category saved = categoryRepository.save(existing);
+        logger.info("Category updated: id={}, name={}", saved.getCategoryId(), saved.getCategoryName());
+        return new CategoryResponse(saved.getCategoryId(), saved.getCategoryName(), List.of());
     }
 
     @Override
     public void deleteCategory(Long id) {
-        Category existing = getCategoryById(id);
+        Category existing = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", id));
         categoryRepository.delete(existing);
+        logger.info("Category deleted: id={}", id);
     }
 }
